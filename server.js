@@ -1,3 +1,4 @@
+// server.js - VERSIÓN CORREGIDA
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -17,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Variables para almacenar el estado de la pizarra
 let connectedUsers = new Map();
-let drawingHistory = [];
+let drawingHistory = []; // Array para guardar TODOS los trazos
 let userColors = ['#667eea', '#ff6b6b', '#51cf66', '#ffd43b', '#ff8787', '#69db7c', '#4dabf7'];
 let colorIndex = 0;
 
@@ -50,69 +51,85 @@ io.on('connection', (socket) => {
 
   connectedUsers.set(socket.id, userData);
 
-  // Enviar datos iniciales
+  // IMPORTANTE: Enviar historial completo al nuevo usuario
   socket.emit('user-data', userData);
-  socket.emit('drawing-history', drawingHistory);
+  
+  // Enviar historial de dibujo inmediatamente
+  if (drawingHistory.length > 0) {
+    console.log(`Enviando ${drawingHistory.length} trazos de historial a ${userName}`);
+    socket.emit('drawing-history', drawingHistory);
+  }
   
   // Notificar a todos sobre el nuevo usuario
   io.emit('users-update', Array.from(connectedUsers.values()));
-  io.emit('user-joined', { user: userData.name, color: userData.color });
+  socket.broadcast.emit('user-joined', { user: userData.name, color: userData.color });
 
   // Manejar eventos de dibujo
   socket.on('start-drawing', (data) => {
     userData.isDrawing = true;
-    connectedUsers.set(socket.id, userData);
-    
-    const drawData = {
-      ...data,
+    userData.currentStroke = {
+      tool: data.tool,
+      color: data.color,
+      size: data.size,
+      points: [{ x: data.x, y: data.y }],
       userId: socket.id,
       userName: userData.name,
       userColor: userData.color,
-      timestamp: Date.now(),
-      type: 'start'
+      timestamp: Date.now()
     };
-
-    socket.broadcast.emit('user-start-drawing', drawData);
+    
+    connectedUsers.set(socket.id, userData);
+    
+    socket.broadcast.emit('user-start-drawing', {
+      ...data,
+      userId: socket.id,
+      userName: userData.name,
+      userColor: userData.color
+    });
   });
 
   socket.on('drawing', (data) => {
-    if (userData.isDrawing) {
-      const drawData = {
+    if (userData.isDrawing && userData.currentStroke) {
+      // Agregar punto al trazo actual
+      userData.currentStroke.points.push({ x: data.x, y: data.y });
+      
+      socket.broadcast.emit('user-drawing', {
         ...data,
         userId: socket.id,
         userName: userData.name,
         userColor: userData.color,
-        timestamp: Date.now(),
-        type: 'draw'
-      };
-
-      if (data.tool !== 'cursor') {
-        drawingHistory.push(drawData);
-        if (drawingHistory.length > 1000) {
-          drawingHistory = drawingHistory.slice(-1000);
-        }
-      }
-
-      socket.broadcast.emit('user-drawing', drawData);
+        timestamp: Date.now()
+      });
     }
   });
 
   socket.on('stop-drawing', (data) => {
-    userData.isDrawing = false;
-    connectedUsers.set(socket.id, userData);
-    
-    const drawData = {
-      ...data,
-      userId: socket.id,
-      userName: userData.name,
-      userColor: userData.color,
-      timestamp: Date.now(),
-      type: 'stop'
-    };
-
-    socket.broadcast.emit('user-stop-drawing', drawData);
+    if (userData.isDrawing && userData.currentStroke) {
+      userData.isDrawing = false;
+      
+      // GUARDAR el trazo completo en el historial
+      drawingHistory.push(userData.currentStroke);
+      
+      // Limitar historial para evitar uso excesivo de memoria
+      if (drawingHistory.length > 500) {
+        drawingHistory = drawingHistory.slice(-500);
+      }
+      
+      console.log(`Trazo guardado. Historial tiene ${drawingHistory.length} trazos`);
+      
+      userData.currentStroke = null;
+      connectedUsers.set(socket.id, userData);
+      
+      socket.broadcast.emit('user-stop-drawing', {
+        ...data,
+        userId: socket.id,
+        userName: userData.name,
+        userColor: userData.color
+      });
+    }
   });
 
+  // Manejar movimiento del cursor
   socket.on('cursor-move', (data) => {
     userData.cursor = { x: data.x, y: data.y };
     connectedUsers.set(socket.id, userData);
@@ -126,14 +143,18 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Limpiar pizarra
   socket.on('clear-canvas', () => {
-    drawingHistory = [];
+    drawingHistory = []; // Limpiar historial completamente
+    console.log('Canvas limpiado. Historial reiniciado.');
+    
     io.emit('canvas-cleared', { 
       clearedBy: userData.name,
       timestamp: Date.now() 
     });
   });
 
+  // Manejar desconexión
   socket.on('disconnect', () => {
     console.log('Usuario desconectado:', socket.id);
     
@@ -141,12 +162,26 @@ io.on('connection', (socket) => {
     connectedUsers.delete(socket.id);
     
     if (disconnectedUser) {
-      io.emit('user-left', { 
+      socket.broadcast.emit('user-left', { 
         user: disconnectedUser.name, 
         color: disconnectedUser.color 
       });
       io.emit('users-update', Array.from(connectedUsers.values()));
     }
+  });
+
+  // Manejar errores
+  socket.on('error', (error) => {
+    console.log('Error de socket:', error);
+  });
+});
+
+// Endpoint para obtener estadísticas
+app.get('/api/stats', (req, res) => {
+  res.json({
+    connectedUsers: connectedUsers.size,
+    drawingStrokes: drawingHistory.length,
+    uptime: process.uptime()
   });
 });
 
@@ -159,4 +194,5 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
   console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
+  console.log(`📊 Estadísticas: ${PORT}/api/stats`);
 });

@@ -15,88 +15,260 @@
         .toolbar { 
             background: rgba(255, 255, 255, 0.95);
             padding: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
         }
+        .tool-group { display: flex; align-items: center; gap: 10px; padding: 0 15px; border-right: 1px solid rgba(0, 0, 0, 0.1); }
+        .tool-group:last-child { border-right: none; }
         .tool-btn { 
             padding: 8px 12px; border: none; border-radius: 8px; 
-            background: #f0f0f0; cursor: pointer; transition: all 0.3s ease;
+            background: #f0f0f0; cursor: pointer; transition: all 0.3s ease; font-size: 14px;
         }
         .tool-btn:hover { background: #e0e0e0; transform: translateY(-2px); }
-        .tool-btn.active { background: #667eea; color: white; }
-        .whiteboard-container { flex: 1; position: relative; }
-        #whiteboard { background: white; cursor: crosshair; width: 100%; height: 100%; }
+        .tool-btn.active { background: #667eea; color: white; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        .color-picker { width: 40px; height: 40px; border: none; border-radius: 50%; cursor: pointer; }
+        .size-slider { width: 120px; }
+        .whiteboard-container { flex: 1; position: relative; overflow: hidden; }
+        #whiteboard { background: white; cursor: crosshair; width: 100%; height: 100%; display: block; }
         .users-panel { 
             position: absolute; top: 20px; right: 20px;
-            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            padding: 15px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            min-width: 200px; max-height: 300px; overflow-y: auto;
         }
-        .status-bar { background: rgba(0, 0, 0, 0.8); color: white; padding: 8px 15px; text-align: center; }
+        .users-title { font-weight: bold; margin-bottom: 10px; color: #333; }
+        .user-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+        .user-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .status-bar { 
+            background: rgba(0, 0, 0, 0.8); color: white; 
+            padding: 8px 15px; text-align: center; font-size: 12px; 
+        }
+        .connection-status { 
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            font-size: 12px; display: flex; align-items: center; gap: 8px;
+        }
+        .connection-dot { 
+            width: 8px; height: 8px; border-radius: 50%; 
+            background: #51cf66; animation: pulse 2s infinite; 
+        }
+        .connection-dot.disconnected { background: #ff6b6b; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        
+        @media (max-width: 768px) {
+            .toolbar { padding: 10px; gap: 10px; }
+            .tool-btn { padding: 6px 8px; font-size: 12px; }
+            .users-panel, .connection-status { position: relative; top: 0; right: 0; left: 0; margin: 10px; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="toolbar">
-            <button class="tool-btn active" onclick="setTool('pen')">✏️ Lápiz</button>
-            <button class="tool-btn" onclick="setTool('eraser')">🧹 Borrador</button>
-            <button class="tool-btn" onclick="setTool('line')">📏 Línea</button>
-            <button class="tool-btn" onclick="setTool('rectangle')">⬜ Rectángulo</button>
-            <button class="tool-btn" onclick="setTool('circle')">⭕ Círculo</button>
-            <input type="color" value="#000000" onchange="setColor(this.value)">
-            <input type="range" min="1" max="20" value="3" onchange="setSize(this.value)">
-            <span id="sizeDisplay">3px</span>
-            <button class="tool-btn" onclick="clearCanvas()">🗑️ Limpiar</button>
-            <button class="tool-btn" onclick="saveCanvas()">💾 Guardar</button>
+            <div class="tool-group">
+                <button class="tool-btn active" onclick="setTool('pen')">✏️ Lápiz</button>
+                <button class="tool-btn" onclick="setTool('eraser')">🧹 Borrador</button>
+                <button class="tool-btn" onclick="setTool('line')">📏 Línea</button>
+                <button class="tool-btn" onclick="setTool('rectangle')">⬜ Rectángulo</button>
+                <button class="tool-btn" onclick="setTool('circle')">⭕ Círculo</button>
+            </div>
+            
+            <div class="tool-group">
+                <label>Color:</label>
+                <input type="color" class="color-picker" value="#000000" onchange="setColor(this.value)">
+            </div>
+            
+            <div class="tool-group">
+                <label>Grosor:</label>
+                <input type="range" class="size-slider" min="1" max="20" value="3" onchange="setSize(this.value)">
+                <span id="sizeDisplay">3px</span>
+            </div>
+            
+            <div class="tool-group">
+                <button class="tool-btn" onclick="clearCanvas()">🗑️ Limpiar</button>
+                <button class="tool-btn" onclick="saveCanvas()">💾 Guardar</button>
+            </div>
         </div>
         
         <div class="whiteboard-container">
             <canvas id="whiteboard"></canvas>
+            
+            <div class="connection-status">
+                <div class="connection-dot" id="connectionDot"></div>
+                <span id="connectionText">Conectando...</span>
+            </div>
+            
             <div class="users-panel">
-                <div><strong>👥 Usuarios Conectados</strong></div>
-                <div id="usersList">Conectando...</div>
+                <div class="users-title">👥 Usuarios Conectados</div>
+                <div id="usersList">
+                    <div class="user-item">
+                        <div class="user-dot" style="background: #ccc;"></div>
+                        <span>Conectando...</span>
+                    </div>
+                </div>
             </div>
         </div>
         
         <div class="status-bar">
-            <span id="statusText">Cargando...</span>
+            <span id="statusText">Cargando pizarra virtual...</span>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        // Variables globales
         const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
-        let isDrawing = false, currentTool = 'pen', currentColor = '#000000', currentSize = 3;
-        let socket, userData = {}, connectedUsers = [], drawingData = [];
+        let isDrawing = false;
+        let currentTool = 'pen';
+        let currentColor = '#000000';
+        let currentSize = 3;
+        let startX, startY;
+        let socket;
+        let userData = {};
+        let connectedUsers = [];
+        let currentStroke = []; // Para almacenar puntos del trazo actual
 
+        // Configuración inicial del canvas
         function resizeCanvas() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            // Redibujar historial después de redimensionar
+            if (socket && socket.connected) {
+                redrawCanvas();
+            }
         }
+
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Inicializar Socket.io
+        // Configuración del contexto
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Inicializar conexión Socket.io
         function initSocket() {
             socket = io();
-            
-            socket.on('connect', () => updateStatus('✅ Conectado'));
-            socket.on('user-data', (data) => { userData = data; updateStatus(`Conectado como: ${data.name}`); });
-            socket.on('users-update', (users) => { connectedUsers = users; updateUsersList(); });
-            socket.on('user-joined', (data) => updateStatus(`${data.user} se unió`));
-            socket.on('user-left', (data) => updateStatus(`${data.user} se fue`));
-            socket.on('drawing-history', (history) => { drawingData = history; redrawFromHistory(); });
-            socket.on('user-drawing', drawFromOtherUser);
-            socket.on('canvas-cleared', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); drawingData = []; });
+
+            socket.on('connect', () => {
+                updateStatus('✅ Conectado al servidor');
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                updateStatus('❌ Desconectado del servidor');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('user-data', (data) => {
+                userData = data;
+                updateStatus(`Conectado como: ${data.name}`);
+            });
+
+            socket.on('users-update', (users) => {
+                connectedUsers = users;
+                updateUsersList();
+            });
+
+            socket.on('user-joined', (data) => {
+                updateStatus(`${data.user} se unió a la pizarra`);
+            });
+
+            socket.on('user-left', (data) => {
+                updateStatus(`${data.user} dejó la pizarra`);
+            });
+
+            // EVENTO CLAVE: Recibir historial de dibujo
+            socket.on('drawing-history', (history) => {
+                console.log(`Recibido historial con ${history.length} trazos`);
+                drawHistoryOnCanvas(history);
+                updateStatus(`Historial cargado: ${history.length} trazos`);
+            });
+
+            socket.on('user-start-drawing', (data) => {
+                updateStatus(`${data.userName} está dibujando...`);
+            });
+
+            socket.on('user-drawing', (data) => {
+                drawFromOtherUser(data);
+            });
+
+            socket.on('canvas-cleared', (data) => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                updateStatus(`${data.clearedBy} limpió la pizarra`);
+            });
+
+            socket.on('connect_error', (error) => {
+                updateStatus('❌ Error de conexión');
+                updateConnectionStatus(false);
+                console.error('Error de conexión:', error);
+            });
         }
 
-        // Herramientas
+        // FUNCIÓN CLAVE: Dibujar historial en canvas
+        function drawHistoryOnCanvas(history) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            history.forEach(stroke => {
+                if (stroke.points && stroke.points.length > 1) {
+                    const originalColor = ctx.strokeStyle;
+                    const originalSize = ctx.lineWidth;
+                    const originalComposite = ctx.globalCompositeOperation;
+                    
+                    ctx.strokeStyle = stroke.color;
+                    ctx.lineWidth = stroke.size;
+                    
+                    if (stroke.tool === 'eraser') {
+                        ctx.globalCompositeOperation = 'destination-out';
+                    } else {
+                        ctx.globalCompositeOperation = 'source-over';
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+                    
+                    for (let i = 1; i < stroke.points.length; i++) {
+                        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+                    }
+                    
+                    ctx.stroke();
+                    
+                    // Restaurar configuración original
+                    ctx.strokeStyle = originalColor;
+                    ctx.lineWidth = originalSize;
+                    ctx.globalCompositeOperation = originalComposite;
+                }
+            });
+        }
+
+        // Inicializar socket cuando se carga la página
+        window.addEventListener('load', initSocket);
+
+        // Funciones de herramientas
         function setTool(tool) {
             currentTool = tool;
-            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
             event.target.classList.add('active');
+            
+            if (tool === 'eraser') {
+                canvas.style.cursor = 'grab';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+            
             updateStatus(`Herramienta: ${tool}`);
         }
 
-        function setColor(color) { currentColor = color; updateStatus(`Color: ${color}`); }
-        
+        function setColor(color) {
+            currentColor = color;
+            updateStatus(`Color: ${color}`);
+        }
+
         function setSize(size) {
             currentSize = parseInt(size);
             document.getElementById('sizeDisplay').textContent = size + 'px';
@@ -105,76 +277,216 @@
 
         function updateStatus(message) {
             document.getElementById('statusText').textContent = message;
-            setTimeout(() => document.getElementById('statusText').textContent = 'Listo para dibujar', 2000);
+            setTimeout(() => {
+                if (socket && socket.connected) {
+                    document.getElementById('statusText').textContent = 'Conectado - Listo para dibujar';
+                } else {
+                    document.getElementById('statusText').textContent = 'Desconectado';
+                }
+            }, 2000);
         }
 
-        // Eventos de dibujo
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('connectionDot');
+            const text = document.getElementById('connectionText');
+            
+            if (connected) {
+                dot.classList.remove('disconnected');
+                text.textContent = 'Conectado';
+            } else {
+                dot.classList.add('disconnected');
+                text.textContent = 'Desconectado';
+            }
+        }
+
+        // Eventos del mouse
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
+        // Eventos táctiles
+        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch);
+        canvas.addEventListener('touchend', stopDrawing);
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            if (e.type === 'touchstart') {
+                startDrawing({ offsetX: x, offsetY: y });
+            } else if (e.type === 'touchmove') {
+                draw({ offsetX: x, offsetY: y });
+            }
+        }
+
         function startDrawing(e) {
             isDrawing = true;
-            ctx.beginPath();
-            ctx.moveTo(e.offsetX, e.offsetY);
-            if (socket) socket.emit('start-drawing', { tool: currentTool, color: currentColor, size: currentSize, x: e.offsetX, y: e.offsetY });
+            startX = e.offsetX;
+            startY = e.offsetY;
+            currentStroke = [{ x: startX, y: startY }];
+
+            if (currentTool === 'pen' || currentTool === 'eraser') {
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+            }
+
+            if (socket && socket.connected) {
+                socket.emit('start-drawing', {
+                    tool: currentTool,
+                    color: currentColor,
+                    size: currentSize,
+                    x: startX,
+                    y: startY
+                });
+            }
         }
 
         function draw(e) {
             if (!isDrawing) return;
+
+            currentStroke.push({ x: e.offsetX, y: e.offsetY });
             ctx.lineWidth = currentSize;
-            ctx.strokeStyle = currentColor;
-            ctx.lineTo(e.offsetX, e.offsetY);
-            ctx.stroke();
-            if (socket) socket.emit('drawing', { tool: currentTool, color: currentColor, size: currentSize, x: e.offsetX, y: e.offsetY });
+            
+            if (currentTool === 'pen') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = currentColor;
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+                
+            } else if (currentTool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+            }
+
+            if (socket && socket.connected) {
+                socket.emit('drawing', {
+                    tool: currentTool,
+                    color: currentColor,
+                    size: currentSize,
+                    startX: startX,
+                    startY: startY,
+                    x: e.offsetX,
+                    y: e.offsetY
+                });
+            }
         }
 
         function stopDrawing() {
             if (isDrawing) {
                 isDrawing = false;
-                if (socket) socket.emit('stop-drawing', {});
+                
+                if (socket && socket.connected) {
+                    socket.emit('stop-drawing', {
+                        tool: currentTool,
+                        color: currentColor,
+                        size: currentSize
+                    });
+                }
+                
+                currentStroke = [];
+                updateStatus('Trazo guardado ✓');
             }
         }
 
         function clearCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (socket) socket.emit('clear-canvas');
+            
+            if (socket && socket.connected) {
+                socket.emit('clear-canvas');
+            }
+            
+            updateStatus('Pizarra limpiada');
         }
 
         function saveCanvas() {
             const link = document.createElement('a');
-            link.download = 'pizarra-' + Date.now() + '.png';
+            link.download = 'pizarra-' + new Date().getTime() + '.png';
             link.href = canvas.toDataURL();
             link.click();
+            updateStatus('Imagen guardada');
         }
 
         function drawFromOtherUser(data) {
-            const oldColor = ctx.strokeStyle;
-            const oldSize = ctx.lineWidth;
-            ctx.strokeStyle = data.userColor;
+            const originalColor = ctx.strokeStyle;
+            const originalSize = ctx.lineWidth;
+            const originalComposite = ctx.globalCompositeOperation;
+
             ctx.lineWidth = data.size;
-            ctx.beginPath();
-            ctx.moveTo(data.startX || data.x, data.startY || data.y);
-            ctx.lineTo(data.x, data.y);
-            ctx.stroke();
-            ctx.strokeStyle = oldColor;
-            ctx.lineWidth = oldSize;
+            ctx.strokeStyle = data.color || data.userColor;
+
+            if (data.tool === 'pen') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.beginPath();
+                ctx.moveTo(data.startX || data.x - 1, data.startY || data.y - 1);
+                ctx.lineTo(data.x, data.y);
+                ctx.stroke();
+                
+            } else if (data.tool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.beginPath();
+                ctx.moveTo(data.startX || data.x - 1, data.startY || data.y - 1);
+                ctx.lineTo(data.x, data.y);
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = originalColor;
+            ctx.lineWidth = originalSize;
+            ctx.globalCompositeOperation = originalComposite;
         }
 
-        function redrawFromHistory() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawingData.forEach(data => { if (data.type === 'draw') drawFromOtherUser(data); });
+        function redrawCanvas() {
+            // Esta función se llamará cuando se redimensione
+            if (socket && socket.connected) {
+                socket.emit('request-history');
+            }
         }
 
         function updateUsersList() {
             const usersList = document.getElementById('usersList');
-            usersList.innerHTML = connectedUsers.map(user => 
-                `<div style="color: ${user.color}">${user.name}${user.id === userData.id ? ' (Tú)' : ''}</div>`
-            ).join('');
+            usersList.innerHTML = '';
+            
+            connectedUsers.forEach(user => {
+                const userItem = document.createElement('div');
+                userItem.className = 'user-item';
+                
+                const dot = document.createElement('div');
+                dot.className = 'user-dot';
+                dot.style.background = user.color;
+                
+                const name = document.createElement('span');
+                name.textContent = user.name + (user.id === userData.id ? ' (Tú)' : '');
+                
+                userItem.appendChild(dot);
+                userItem.appendChild(name);
+                usersList.appendChild(userItem);
+            });
         }
 
-        window.addEventListener('load', initSocket);
+        // Atajos de teclado
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 's') {
+                    e.preventDefault();
+                    saveCanvas();
+                }
+                return;
+            }
+
+            switch (e.key.toLowerCase()) {
+                case 'p': setTool('pen'); break;
+                case 'e': setTool('eraser'); break;
+                case 'l': setTool('line'); break;
+                case 'r': setTool('rectangle'); break;
+                case 'c': setTool('circle'); break;
+                case 'delete': clearCanvas(); break;
+            }
+        });
     </script>
 </body>
 </html>
