@@ -123,11 +123,12 @@
         let currentTool = 'pen';
         let currentColor = '#000000';
         let currentSize = 3;
-        let startX, startY;
         let socket;
         let userData = {};
         let connectedUsers = [];
-        let currentStroke = []; // Para almacenar puntos del trazo actual
+        
+        // Variables para manejar dibujo de otros usuarios
+        let otherUsersStrokes = new Map(); // userId -> current stroke data
 
         // Configuración inicial del canvas
         function resizeCanvas() {
@@ -178,25 +179,53 @@
 
             socket.on('user-left', (data) => {
                 updateStatus(`${data.user} dejó la pizarra`);
+                // Limpiar stroke del usuario que se fue
+                otherUsersStrokes.delete(data.userId);
             });
 
-            // EVENTO CLAVE: Recibir historial de dibujo
+            // EVENTO: Recibir historial de dibujo
             socket.on('drawing-history', (history) => {
                 console.log(`Recibido historial con ${history.length} trazos`);
                 drawHistoryOnCanvas(history);
                 updateStatus(`Historial cargado: ${history.length} trazos`);
             });
 
+            // EVENTO: Otro usuario comenzó a dibujar
             socket.on('user-start-drawing', (data) => {
+                // Inicializar stroke para este usuario
+                otherUsersStrokes.set(data.userId, {
+                    tool: data.tool,
+                    color: data.color || data.userColor,
+                    size: data.size,
+                    points: [{ x: data.x, y: data.y }],
+                    isActive: true
+                });
                 updateStatus(`${data.userName} está dibujando...`);
             });
 
+            // EVENTO: Otro usuario está dibujando (recibir puntos)
             socket.on('user-drawing', (data) => {
-                drawFromOtherUser(data);
+                const userStroke = otherUsersStrokes.get(data.userId);
+                if (userStroke && userStroke.isActive) {
+                    // Agregar punto al stroke actual
+                    userStroke.points.push({ x: data.x, y: data.y });
+                    
+                    // Dibujar solo la línea desde el punto anterior al actual
+                    drawLineSegment(userStroke, userStroke.points.length - 2, userStroke.points.length - 1);
+                }
+            });
+
+            // EVENTO: Otro usuario dejó de dibujar
+            socket.on('user-stop-drawing', (data) => {
+                const userStroke = otherUsersStrokes.get(data.userId);
+                if (userStroke) {
+                    userStroke.isActive = false;
+                }
             });
 
             socket.on('canvas-cleared', (data) => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                otherUsersStrokes.clear();
                 updateStatus(`${data.clearedBy} limpió la pizarra`);
             });
 
@@ -207,7 +236,37 @@
             });
         }
 
-        // FUNCIÓN CLAVE: Dibujar historial en canvas
+        // FUNCIÓN: Dibujar segmento de línea específico
+        function drawLineSegment(stroke, startIndex, endIndex) {
+            if (!stroke.points || startIndex < 0 || endIndex >= stroke.points.length || startIndex >= endIndex) {
+                return;
+            }
+
+            const originalColor = ctx.strokeStyle;
+            const originalSize = ctx.lineWidth;
+            const originalComposite = ctx.globalCompositeOperation;
+            
+            ctx.strokeStyle = stroke.color;
+            ctx.lineWidth = stroke.size;
+            
+            if (stroke.tool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+            }
+            
+            ctx.beginPath();
+            ctx.moveTo(stroke.points[startIndex].x, stroke.points[startIndex].y);
+            ctx.lineTo(stroke.points[endIndex].x, stroke.points[endIndex].y);
+            ctx.stroke();
+            
+            // Restaurar configuración original
+            ctx.strokeStyle = originalColor;
+            ctx.lineWidth = originalSize;
+            ctx.globalCompositeOperation = originalComposite;
+        }
+
+        // FUNCIÓN: Dibujar historial completo en canvas
         function drawHistoryOnCanvas(history) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
@@ -229,6 +288,7 @@
                     ctx.beginPath();
                     ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
                     
+                    // Dibujar línea continua a través de todos los puntos
                     for (let i = 1; i < stroke.points.length; i++) {
                         ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
                     }
@@ -299,6 +359,10 @@
             }
         }
 
+        // Variables para el dibujo local
+        let lastX = 0;
+        let lastY = 0;
+
         // Eventos del mouse
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
@@ -326,22 +390,19 @@
 
         function startDrawing(e) {
             isDrawing = true;
-            startX = e.offsetX;
-            startY = e.offsetY;
-            currentStroke = [{ x: startX, y: startY }];
+            lastX = e.offsetX;
+            lastY = e.offsetY;
 
-            if (currentTool === 'pen' || currentTool === 'eraser') {
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-            }
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
 
             if (socket && socket.connected) {
                 socket.emit('start-drawing', {
                     tool: currentTool,
                     color: currentColor,
                     size: currentSize,
-                    x: startX,
-                    y: startY
+                    x: lastX,
+                    y: lastY
                 });
             }
         }
@@ -349,32 +410,33 @@
         function draw(e) {
             if (!isDrawing) return;
 
-            currentStroke.push({ x: e.offsetX, y: e.offsetY });
             ctx.lineWidth = currentSize;
             
             if (currentTool === 'pen') {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = currentColor;
-                ctx.lineTo(e.offsetX, e.offsetY);
-                ctx.stroke();
                 
             } else if (currentTool === 'eraser') {
                 ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineTo(e.offsetX, e.offsetY);
-                ctx.stroke();
             }
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
 
             if (socket && socket.connected) {
                 socket.emit('drawing', {
                     tool: currentTool,
                     color: currentColor,
                     size: currentSize,
-                    startX: startX,
-                    startY: startY,
                     x: e.offsetX,
                     y: e.offsetY
                 });
             }
+
+            lastX = e.offsetX;
+            lastY = e.offsetY;
         }
 
         function stopDrawing() {
@@ -389,13 +451,13 @@
                     });
                 }
                 
-                currentStroke = [];
                 updateStatus('Trazo guardado ✓');
             }
         }
 
         function clearCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            otherUsersStrokes.clear();
             
             if (socket && socket.connected) {
                 socket.emit('clear-canvas');
@@ -412,36 +474,8 @@
             updateStatus('Imagen guardada');
         }
 
-        function drawFromOtherUser(data) {
-            const originalColor = ctx.strokeStyle;
-            const originalSize = ctx.lineWidth;
-            const originalComposite = ctx.globalCompositeOperation;
-
-            ctx.lineWidth = data.size;
-            ctx.strokeStyle = data.color || data.userColor;
-
-            if (data.tool === 'pen') {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.beginPath();
-                ctx.moveTo(data.startX || data.x - 1, data.startY || data.y - 1);
-                ctx.lineTo(data.x, data.y);
-                ctx.stroke();
-                
-            } else if (data.tool === 'eraser') {
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.beginPath();
-                ctx.moveTo(data.startX || data.x - 1, data.startY || data.y - 1);
-                ctx.lineTo(data.x, data.y);
-                ctx.stroke();
-            }
-
-            ctx.strokeStyle = originalColor;
-            ctx.lineWidth = originalSize;
-            ctx.globalCompositeOperation = originalComposite;
-        }
-
         function redrawCanvas() {
-            // Esta función se llamará cuando se redimensione
+            // Esta función se puede usar para forzar redibujo si es necesario
             if (socket && socket.connected) {
                 socket.emit('request-history');
             }
