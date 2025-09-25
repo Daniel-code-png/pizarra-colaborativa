@@ -93,13 +93,27 @@ io.on('connection', (socket) => {
       // Agregar punto al trazo actual
       userData.currentStroke.points.push({ x: data.x, y: data.y });
       
-      socket.broadcast.emit('user-drawing', {
-        ...data,
-        userId: socket.id,
-        userName: userData.name,
-        userColor: userData.color,
-        timestamp: Date.now()
-      });
+      // Enviar SOLO las coordenadas actuales y anteriores
+      const points = userData.currentStroke.points;
+      const currentIndex = points.length - 1;
+      const prevIndex = currentIndex - 1;
+      
+      if (prevIndex >= 0) {
+        socket.broadcast.emit('user-drawing', {
+          tool: data.tool,
+          color: data.color,
+          size: data.size,
+          // Enviar punto anterior y actual para línea continua
+          fromX: points[prevIndex].x,
+          fromY: points[prevIndex].y,
+          x: data.x,
+          y: data.y,
+          userId: socket.id,
+          userName: userData.name,
+          userColor: userData.color,
+          timestamp: Date.now()
+        });
+      }
     }
   });
 

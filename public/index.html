@@ -205,13 +205,24 @@
 
             // EVENTO: Otro usuario está dibujando (recibir puntos)
             socket.on('user-drawing', (data) => {
+                // Dibujar directamente la línea entre los puntos recibidos
+                if (data.fromX !== undefined && data.fromY !== undefined) {
+                    const fromPoint = { x: data.fromX, y: data.fromY };
+                    const toPoint = { x: data.x, y: data.y };
+                    
+                    const strokeData = {
+                        color: data.color || data.userColor,
+                        size: data.size,
+                        tool: data.tool
+                    };
+                    
+                    drawDirectLine(fromPoint, toPoint, strokeData);
+                }
+                
+                // Mantener registro del stroke para historial
                 const userStroke = otherUsersStrokes.get(data.userId);
                 if (userStroke && userStroke.isActive) {
-                    // Agregar punto al stroke actual
                     userStroke.points.push({ x: data.x, y: data.y });
-                    
-                    // Dibujar solo la línea desde el punto anterior al actual
-                    drawLineSegment(userStroke, userStroke.points.length - 2, userStroke.points.length - 1);
                 }
             });
 
@@ -236,11 +247,9 @@
             });
         }
 
-        // FUNCIÓN: Dibujar segmento de línea específico
-        function drawLineSegment(stroke, startIndex, endIndex) {
-            if (!stroke.points || startIndex < 0 || endIndex >= stroke.points.length || startIndex >= endIndex) {
-                return;
-            }
+        // FUNCIÓN: Dibujar línea directa entre dos puntos
+        function drawDirectLine(fromPoint, toPoint, stroke) {
+            if (!fromPoint || !toPoint) return;
 
             const originalColor = ctx.strokeStyle;
             const originalSize = ctx.lineWidth;
@@ -256,14 +265,25 @@
             }
             
             ctx.beginPath();
-            ctx.moveTo(stroke.points[startIndex].x, stroke.points[startIndex].y);
-            ctx.lineTo(stroke.points[endIndex].x, stroke.points[endIndex].y);
+            ctx.moveTo(fromPoint.x, fromPoint.y);
+            ctx.lineTo(toPoint.x, toPoint.y);
             ctx.stroke();
             
             // Restaurar configuración original
             ctx.strokeStyle = originalColor;
             ctx.lineWidth = originalSize;
             ctx.globalCompositeOperation = originalComposite;
+        }
+
+        // FUNCIÓN: Dibujar segmento de línea específico (OBSOLETA - mantenida por compatibilidad)
+        function drawLineSegment(stroke, startIndex, endIndex) {
+            if (!stroke.points || startIndex < 0 || endIndex >= stroke.points.length || startIndex >= endIndex) {
+                return;
+            }
+
+            const startPoint = stroke.points[startIndex];
+            const endPoint = stroke.points[endIndex];
+            drawDirectLine(startPoint, endPoint, stroke);
         }
 
         // FUNCIÓN: Dibujar historial completo en canvas
