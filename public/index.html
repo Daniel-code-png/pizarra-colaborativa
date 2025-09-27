@@ -365,7 +365,7 @@
             }
             const res = await fetch('/api/logout', { method: 'POST' });
             if (res.ok) {
-                window.location.href = '/public/login.html';
+                window.location.href = '/login.html';
             } else {
                 updateStatus('❌ Error al cerrar sesión');
             }
