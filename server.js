@@ -6,6 +6,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,26 +23,54 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const SECRET_KEY = 'pizarra-secreta';
-let users = {}; // Almacenar usuarios registrados
+
+const USERS_FILE = path.join(__dirname, 'users.json');
+
+function loadUsers() {
+  try {
+    const data = fs.readFileSync(USERS_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error al cargar usuarios:', error);
+    return [];
+  }
+}
+
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+let users = loadUsers();
 
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
-  if (users.find(u => u.username === username)) {
-    return res.status(400).json({ message: 'Usuario ya existe' });
+  if (!username || !password) {
+    return res.status(400).json({ error: "Usuario y contraseña requeridos" });
   }
-  const hashedPassword = await bcrypt.hash(password, 10);
-  users.push({ username, password: hashedPassword });
+  if (users.find(u => u.username === username)) {
+    return res.status(400).json({ error: "Usuario ya existe" });
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
+  users.push({ username, passwordHash });
+  saveUsers(users);
   res.json({ success: true });
 });
 
+// Login
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   const user = users.find(u => u.username === username);
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ message: 'Credenciales inválidas' });
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: "Credenciales inválidas" });
   }
   const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '1h' });
-  res.cookie('token', token, { httpOnly: true }).json({ success: true });
+  res.cookie("token", token, { httpOnly: true });
+  res.json({ success: true });
+});
+
+app.post('/api/logout', (req, res) => {
+  res.clearCookie("token");
+  res.json({ success: true });
 });
 
 // Middleware de autenticación

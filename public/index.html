@@ -88,6 +88,10 @@
                 <button class="tool-btn" onclick="clearCanvas()">🗑️ Limpiar</button>
                 <button class="tool-btn" onclick="saveCanvas()">💾 Guardar</button>
             </div>
+
+            <div class="tool-group">
+                <button class="tool-btn" onclick="logout()">🚪 Cerrar sesión</button>
+            </div>
         </div>
         
         <div class="whiteboard-container">
@@ -353,6 +357,18 @@
             currentSize = parseInt(size);
             document.getElementById('sizeDisplay').textContent = size + 'px';
             updateStatus(`Grosor: ${size}px`);
+        }
+
+        async function logout() {
+            if (socket && socket.connected) {
+                socket.disconnect();
+            }
+            const res = await fetch('/api/logout', { method: 'POST' });
+            if (res.ok) {
+                window.location.href = '/public/login.html';
+            } else {
+                updateStatus('❌ Error al cerrar sesión');
+            }
         }
 
         function updateStatus(message) {
