@@ -20,6 +20,12 @@ const io = socketIo(server, {
 // Servir archivos estáticos
 app.use(express.json());
 app.use(cookieParser());
+
+// Proteger la pizarra
+app.get('/', authMiddleware, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const SECRET_KEY = 'pizarra-secreta';
@@ -77,7 +83,12 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  res.clearCookie("token", cookieOptions);
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/'
+  });
   res.json({ success: true });
 });
 
@@ -96,11 +107,6 @@ function authMiddleware(req, res, next) {
     res.redirect('/login.html'); // 👈 aquí igual
   }
 }
-
-// Proteger la pizarra
-app.get('/', authMiddleware, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 // Variables para almacenar el estado de la pizarra
 let connectedUsers = new Map();
