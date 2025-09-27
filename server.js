@@ -23,6 +23,14 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const SECRET_KEY = 'pizarra-secreta';
+app.set('trust proxy', 1); // si estás detrás de un proxy (como en Heroku)
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production', // Cambia a true si usas HTTPS
+  sameSite: 'Lax',
+  path: '/'
+};
 
 const USERS_FILE = path.join(__dirname, 'users.json');
 
@@ -64,30 +72,33 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ error: "Credenciales inválidas" });
   }
   const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '1h' });
-  res.cookie("token", token, { httpOnly: true });
+  res.cookie("token", token, cookieOptions);
   res.json({ success: true });
 });
 
 app.post('/api/logout', (req, res) => {
-  res.clearCookie("token");
+  res.clearCookie("token", cookieOptions);
   res.json({ success: true });
 });
 
 // Middleware de autenticación
-function authenticate(req, res, next) {
+function authMiddleware(req, res, next) {
   const token = req.cookies.token;
-  if (!token) return res.redirect('/login.html');
+  if (!token) {
+    return res.redirect('/login.html');  // 👈 importante: sin /public
+  }
 
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
     req.user = decoded;
     next();
-  } catch {
-    res.redirect('/login.html');
+  } catch (err) {
+    res.redirect('/login.html'); // 👈 aquí igual
   }
 }
 
-app.get('/', authenticate, (req, res) => {
+// Proteger la pizarra
+app.get('/', authMiddleware, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
