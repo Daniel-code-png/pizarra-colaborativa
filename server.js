@@ -3,6 +3,9 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,7 +17,50 @@ const io = socketIo(server, {
 });
 
 // Servir archivos estáticos
+app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+const SECRET_KEY = 'pizarra-secreta';
+let users = {}; // Almacenar usuarios registrados
+
+app.post('/api/register', async (req, res) => {
+  const { username, password } = req.body;
+  if (users.find(u => u.username === username)) {
+    return res.status(400).json({ message: 'Usuario ya existe' });
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+  users.push({ username, password: hashedPassword });
+  res.json({ success: true });
+});
+
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = users.find(u => u.username === username);
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).json({ message: 'Credenciales inválidas' });
+  }
+  const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '1h' });
+  res.cookie('token', token, { httpOnly: true }).json({ success: true });
+});
+
+// Middleware de autenticación
+function authenticate(req, res, next) {
+  const token = req.cookies.token;
+  if (!token) return res.redirect('/login.html');
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    req.user = decoded;
+    next();
+  } catch {
+    res.redirect('/login.html');
+  }
+}
+
+app.get('/', authenticate, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Variables para almacenar el estado de la pizarra
 let connectedUsers = new Map();
