@@ -1,0 +1,35 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      name: "Prueba básica - 5 usuarios por segundo"
+  engines:
+    socketio: {}
+
+scenarios:
+  - name: "Simular dibujo en pizarra"
+    engine: socketio
+    flow:
+      - emit:
+          channel: "start-drawing"
+          data:
+            tool: "pen"
+            color: "#000000"
+            size: 3
+            x: 100
+            y: 100
+      - think: 0.1
+      - emit:
+          channel: "drawing"
+          data:
+            tool: "pen"
+            color: "#000000"
+            size: 3
+            x: 150
+            y: 150
+      - think: 0.1
+      - emit:
+          channel: "stop-drawing"
+          data:
+            tool: "pen"

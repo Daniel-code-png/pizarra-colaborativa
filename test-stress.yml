@@ -1,0 +1,70 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    # Fase 1: Calentamiento
+    - duration: 20
+      arrivalRate: 5
+      name: "Calentamiento - 5 usuarios/seg"
+    
+    # Fase 2: Carga moderada
+    - duration: 30
+      arrivalRate: 10
+      name: "Carga moderada - 10 usuarios/seg"
+    
+    # Fase 3: Carga alta
+    - duration: 30
+      arrivalRate: 20
+      name: "Carga alta - 20 usuarios/seg"
+    
+    # Fase 4: Estrés extremo
+    - duration: 20
+      arrivalRate: 30
+      name: "Estrés extremo - 30 usuarios/seg"
+    
+    # Fase 5: Pico máximo
+    - duration: 10
+      arrivalRate: 50
+      name: "Pico máximo - 50 usuarios/seg"
+
+  engines:
+    socketio: {}
+
+scenarios:
+  - name: "Dibujo intensivo en pizarra"
+    engine: socketio
+    flow:
+      # Simular múltiples trazos de dibujo
+      - loop:
+        - emit:
+            channel: "start-drawing"
+            data:
+              tool: "pen"
+              color: "#000000"
+              size: 3
+              x: "{{ $randomNumber(0, 800) }}"
+              y: "{{ $randomNumber(0, 600) }}"
+        - think: 0.05
+        - emit:
+            channel: "drawing"
+            data:
+              tool: "pen"
+              color: "#000000"
+              size: 3
+              x: "{{ $randomNumber(0, 800) }}"
+              y: "{{ $randomNumber(0, 600) }}"
+        - think: 0.05
+        - emit:
+            channel: "drawing"
+            data:
+              tool: "pen"
+              color: "#000000"
+              size: 3
+              x: "{{ $randomNumber(0, 800) }}"
+              y: "{{ $randomNumber(0, 600) }}"
+        - think: 0.05
+        - emit:
+            channel: "stop-drawing"
+            data:
+              tool: "pen"
+        - think: 0.1
+        count: 5
