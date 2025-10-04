@@ -1,0 +1,4 @@
+channel_name,is_private,topic,invite_emails
+proyecto-a,true,"Canal privado para Proyecto A","jhonatanmordorig@gmail.com;williamandresmera@gmail.com;daniel.soto01@unicatolica.edu.co"
+proyecto-b,false,"Canal público de pruebas","jhonatanmordorig@gmail.com;williamandresmera@gmail.com;daniel.soto01@unicatolica.edu.co"
+equipo-dev,true,"Canal de desarrollo interno","jhonatanmordorig@gmail.com;williamandresmera@gmail.com;daniel.soto01@unicatolica.edu.co"

@@ -1,0 +1,12 @@
+# Ignorar dependencias
+node_modules/
+
+# Ignorar variables de entorno (tokens, claves)
+.env
+
+# Ignorar logs
+slack-log.txt
+
+# Ignorar archivos temporales de sistema
+.DS_Store
+Thumbs.db
