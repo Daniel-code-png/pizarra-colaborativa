@@ -25,7 +25,7 @@ function loadCSV(path) {
 async function main() {
   const file = process.argv[2];
   if (!file) {
-    console.error("Uso: node create-channels-from-file.js channels.csv");
+    console.error("Uso: node create-channels-from-file.js canal.csv");
     process.exit(1);
   }
 

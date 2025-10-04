@@ -42,5 +42,9 @@
   {
     "username": "user10",
     "passwordHash": "$2b$10$aeqpaIhTicB5xYEXBoL40e5KIXFsKoYK..32bX5KJF06i8pCZF1kK"
+  },
+  {
+    "username": "test2",
+    "passwordHash": "$2b$10$zPdRXgQsjRW0zGDT7wkfvuntSVKROiilk0DTVR3nwNqdjmbszSte."
   }
 ]
